@@ -70,7 +70,6 @@ def add(x: torch.Tensor, y: torch.Tensor):
     #  - Each torch.tensor object is implicitly converted into a pointer to its first element.
     #  - `triton.jit`'ed functions can be indexed with a launch grid to obtain a callable GPU kernel.
     #  - Don't forget to pass meta-parameters as keywords arguments.
-    print(type(add_kernel))
     add_kernel[grid](x, y, output, n_elements, BLOCK_SIZE=1024)
     # We return a handle to z but, since `torch.cuda.synchronize()` hasn't been called, the kernel is still
     # running asynchronously at this point.
@@ -80,27 +79,27 @@ def add(x: torch.Tensor, y: torch.Tensor):
 # %%
 # We can now use the above function to compute the element-wise sum of two `torch.tensor` objects and test its correctness:
 
-torch.manual_seed(0)
-size = 98432
-x = torch.rand(size, device='cuda')
-y = torch.rand(size, device='cuda')
-output_torch = x + y
-output_triton = add(x, y)
-print(output_torch)
-print(output_triton)
-print(f'The maximum difference between torch and triton is '
-      f'{torch.max(torch.abs(output_torch - output_triton))}')
+# torch.manual_seed(0)
+# size = 98432
+# x = torch.rand(size, device='cuda')
+# y = torch.rand(size, device='cuda')
+# output_torch = x + y
+# output_triton = add(x, y)
+# print(output_torch)
+# print(output_triton)
+# print(f'The maximum difference between torch and triton is '
+#       f'{torch.max(torch.abs(output_torch - output_triton))}')
 
-# # %%
-# # Seems like we're good to go!
+# %%
+# Seems like we're good to go!
 
-# # %%
-# # Benchmark
-# # ---------
-# #
-# # We can now benchmark our custom op on vectors of increasing sizes to get a sense of how it does relative to PyTorch.
-# # To make things easier, Triton has a set of built-in utilities that allow us to concisely plot the performance of our custom ops.
-# # for different problem sizes.
+# %%
+# Benchmark
+# ---------
+#
+# We can now benchmark our custom op on vectors of increasing sizes to get a sense of how it does relative to PyTorch.
+# To make things easier, Triton has a set of built-in utilities that allow us to concisely plot the performance of our custom ops.
+# for different problem sizes.
 
 
 # @triton.testing.perf_report(

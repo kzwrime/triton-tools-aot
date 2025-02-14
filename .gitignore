@@ -64,3 +64,7 @@ docs/sg_execution_times.rst
 
 # Vim
 *.swp
+
+*.o
+*.out
+*.exe

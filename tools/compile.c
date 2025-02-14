@@ -65,3 +65,12 @@ CUresult {kernel_name}(CUstream stream, {signature}) {{
     if(gX * gY * gZ > 0)
       return cuLaunchKernel({kernel_name}_func, gX, gY, gZ, {num_warps} * 32, 1, 1, {shared}, stream, args, NULL);
 }}
+
+CUresult {kernel_name}_with_grid(CUstream stream, {signature}, unsigned int gX, unsigned int gY, unsigned int gZ) {{
+    if ({kernel_name}_func == NULL)
+       load_{kernel_name}();
+    void *args[{num_args}] = {{ {arg_pointers} }};
+    // TODO: shared memory
+    if(gX * gY * gZ > 0)
+      return cuLaunchKernel({kernel_name}_func, gX, gY, gZ, {num_warps} * 32, 1, 1, {shared}, stream, args, NULL);
+}}

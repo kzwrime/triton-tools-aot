@@ -90,6 +90,14 @@ if __name__ == "__main__":
             pass
         return None
 
+    def pytype_to_ty(s):
+        if isinstance(s, int):
+            return "i64"
+        elif isinstance(s, float):
+            return "fp64"
+        else:
+            raise NotImplementedError()
+
     hints = {i: constexpr(s.split(":")[1]) for i, s in enumerate(signature) if ":" in s}
     hints = {k: v for k, v in hints.items() if v is not None}
     constants = {i: constexpr(s) for i, s in enumerate(signature)}
@@ -128,6 +136,7 @@ if __name__ == "__main__":
         "bin_data": ", ".join([f"0x{x}{y}" for x, y in zip(hex_[::2], hex_[1::2])]),
         "signature": ", ".join([f"{ty_to_cpp(ty)} {name}" for name, ty in zip(arg_names, arg_types)]),
         "full_signature": ", ".join([f"{ty_to_cpp(signature[i])} {kernel.arg_names[i]}" for i in signature.keys()]),
+        "constexpr": "; ".join([f"{ty_to_cpp(pytype_to_ty(constants[i]))}, {kernel.arg_names[i]}, {constants[i]}" for i in constants.keys() if i not in signature.keys()] + [f"int, num_warps, {args.num_warps}", f"int, num_stages, {args.num_stages}"]),
         "arg_pointers": ", ".join([f"&{arg}" for arg in arg_names]),
         "num_args": len(arg_names),
         "kernel_docstring": doc_string,
@@ -139,6 +148,12 @@ if __name__ == "__main__":
         "gridZ": grid[2],
         "_placeholder": "",
     }
+    # print(f"const_sig={const_sig}")
+    # print(f"meta_sig={meta_sig}")
+    # print(f"signature={signature}")
+    # print(f"constants={constants}")
+    # print(f"kernel.arg_names={kernel.arg_names}")
+
     for ext in ['h', 'c']:
         template_path = Path(__file__).parent / f"compile.{ext}"
         with out_path.with_suffix(f".{sig_hash}_{suffix}.{ext}").open("w") as fp:
