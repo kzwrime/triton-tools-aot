@@ -24,6 +24,9 @@ kernel_output_name="add_kernel_fp32_fp32_fp32"
 python3 ${compile_tools_path} ${kernel_file_path} --kernel-name ${kernel_name} --out-name ${kernel_output_name} --out-path ${output_path_with_prefix} --grid ${default_grid} --signature "*fp32, *fp32, *fp32, i32, 128"
 python3 ${compile_tools_path} ${kernel_file_path} --kernel-name ${kernel_name} --out-name ${kernel_output_name} --out-path ${output_path_with_prefix} --grid ${default_grid} --signature "*fp32, *fp32, *fp32, i32:1, 64"
 python3 ${compile_tools_path} ${kernel_file_path} --kernel-name ${kernel_name} --out-name ${kernel_output_name} --out-path ${output_path_with_prefix} --grid ${default_grid} --signature "*fp32, *fp32, *fp32, i32, 64"
+python3 ${compile_tools_path} ${kernel_file_path} --kernel-name ${kernel_name} --out-name ${kernel_output_name} --out-path ${output_path_with_prefix} --grid ${default_grid} --signature "*fp32:16, *fp32:16, *fp32:16, i32, 128"
+python3 ${compile_tools_path} ${kernel_file_path} --kernel-name ${kernel_name} --out-name ${kernel_output_name} --out-path ${output_path_with_prefix} --grid ${default_grid} --signature "*fp32:16, *fp32:16, *fp32:16, i32:1, 64"
+python3 ${compile_tools_path} ${kernel_file_path} --kernel-name ${kernel_name} --out-name ${kernel_output_name} --out-path ${output_path_with_prefix} --grid ${default_grid} --signature "*fp32:16, *fp32:16, *fp32:16, i32, 64"
 # python3 ../../tools/compile.py ./01-vector-add.py --kernel-name add_kernel --signature "*fp32:16, *fp32:16, *fp32:16, i32, 128" --out-path ./kernels/add_kernel --grid 1024,1,1
 # python3 ../../tools/compile.py ./01-vector-add.py --kernel-name add_kernel --signature "*fp32:16, *fp32:16, *fp32:16, i32, 64" --out-path ./kernels/add_kernel --grid 1024,1,1
 # python3 ../../tools/compile.py ./01-vector-add.py --kernel-name add_kernel --signature "*i32, *i32, *i32, i32:1, 64" --out-path ./kernels/add_kernel --grid 1024,1,1
