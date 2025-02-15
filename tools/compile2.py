@@ -111,11 +111,11 @@ def kernel_to_c(
     arg_names = []
     arg_types = []
     for i, item in enumerate(signature.items()):
-        name = item[0]
-        type = item[1]
-        if name not in constants:
-            arg_names += [name]
-            arg_types += [type]
+        arg_name = item[0]
+        arg_type = item[1]
+        if arg_name not in constants:
+            arg_names += [arg_name]
+            arg_types += [arg_type]
 
     const_sig = 'x'.join([str(v) for v in constants.values()])
 
@@ -132,7 +132,7 @@ def kernel_to_c(
         "full_signature": ", ".join([f"{ty_to_cpp(ty)} {name}" for name, ty in signature.items()]),
         "constexpr": "; ".join([f"{ty_to_cpp(pytype_to_ty(value))}, {name}, {pyval_to_cval_str(value)}" 
                                 for name, value in constants.items() 
-                                if name not in signature.keys() and value in accept_constexpr_types] + 
+                                if name not in signature.keys() and type(value) in accept_constexpr_types] + 
                                [f"int, num_warps, {num_warps}", f"int, num_stages, {num_stages}"]),
         "arg_pointers": ", ".join([f"&{arg}" for arg in arg_names]),
         "num_args": len(arg_names),
