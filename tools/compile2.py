@@ -36,6 +36,15 @@ NOTE: when resolving the scope of /path/to/kernel.py, the file will be executed 
 used to run this `compile.py` script
 """
 
+class FakeTensor:
+
+    def __init__(self, ptr_align, dtype) -> None:
+        self.ptr_align = ptr_align
+        self.dtype = dtype
+
+    def data_ptr(self):
+        return self.ptr_align
+
 def kernel_to_c(
     kernel_jit_func,
     kernel_name: str,
@@ -61,12 +70,18 @@ def kernel_to_c(
 
 
     def pytype_to_ty(s):
-        if isinstance(s, int):
+        if isinstance(s, (int, bool)):
             return "i64"
         elif isinstance(s, float):
             return "fp64"
         else:
             raise NotImplementedError()
+    def pyval_to_cval_str(s):
+        if isinstance(s, bool):
+            return str(int(s))
+        else:
+            return str(s)
+    accept_constexpr_types = (int, float, bool)
 
     signature = ccinfo.src.signature
     constants = ccinfo.src.constants
@@ -115,7 +130,10 @@ def kernel_to_c(
         "bin_data": ", ".join([f"0x{x}{y}" for x, y in zip(hex_[::2], hex_[1::2])]),
         "signature": ", ".join([f"{ty_to_cpp(ty)} {name}" for name, ty in signature.items()]),
         "full_signature": ", ".join([f"{ty_to_cpp(ty)} {name}" for name, ty in signature.items()]),
-        "constexpr": "; ".join([f"{ty_to_cpp(pytype_to_ty(value))}, {name}, {value}" for name, value in constants.items() if i not in signature.keys()] + [f"int, num_warps, {num_warps}", f"int, num_stages, {num_stages}"]),
+        "constexpr": "; ".join([f"{ty_to_cpp(pytype_to_ty(value))}, {name}, {pyval_to_cval_str(value)}" 
+                                for name, value in constants.items() 
+                                if name not in signature.keys() and value in accept_constexpr_types] + 
+                               [f"int, num_warps, {num_warps}", f"int, num_stages, {num_stages}"]),
         "arg_pointers": ", ".join([f"&{arg}" for arg in arg_names]),
         "num_args": len(arg_names),
         "kernel_docstring": doc_string,
