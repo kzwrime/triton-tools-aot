@@ -19,7 +19,7 @@ static inline void gpuAssert(CUresult code, const char *file, int line) {{
     char err[1024] = {{0}};
     strcat(err, prefix);
     strcat(err, str);
-    printf("%s:%d %s\n", file, line, err);
+    printf("%s:%d %d %s\n", file, line, (int)code, err);
     exit(code);
   }}
 }}
