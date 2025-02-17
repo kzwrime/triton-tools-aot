@@ -6,9 +6,7 @@
 #include <vector>
 #include <typeinfo>
 
-extern "C" {
-    #include "add_kernel.h"
-}
+#include "add_kernel.h"
 
 #define CUDA_CHECK(call) \
     do { \
@@ -75,8 +73,8 @@ void vec_add(int n) {
     int threadsPerBlock = 128;
     int blocksPerGrid = (n + threadsPerBlock - 1) / threadsPerBlock;
     // vec_add_kernel<T><<<blocksPerGrid, threadsPerBlock>>>((const T*)d_vecA, (const T*)d_vecB, (T*)d_vecC, n);
-    CUDA_CHECK(add_kernel_fp32_fp32_fp32_constexpr_dispatcher_with_grid(
-        cudaStreamPerThread, d_vecA, d_vecB, d_vecC, n, threadsPerBlock, 1, 3, blocksPerGrid, 1, 1)
+    CUDA_CHECK(add_kernel_constexpr_dispatcher_with_grid(
+        cudaStreamPerThread, d_vecA, d_vecB, d_vecC, n, threadsPerBlock, 4, 3, blocksPerGrid, 1, 1)
     );
 
     // Check for kernel launch errors
@@ -119,6 +117,10 @@ int main() {
     CUDA_CHECK(cuDeviceGet(&device, 0));
     CUcontext context;
     CUDA_CHECK(cuCtxCreate(&context, 0, device));
+
+    std::cout << "load_vector_add..." << std::endl;
+    load_add_kernel();
+    std::cout << "load_vector_add finished" << std::endl;
 
     // Set vector length and type
     int n = 100000;

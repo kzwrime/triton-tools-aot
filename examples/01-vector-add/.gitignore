@@ -1,1 +1,7 @@
 kernels
+*.a
+*.so
+*.o
+*.out
+*.exe
+obj

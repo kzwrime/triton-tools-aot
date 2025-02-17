@@ -1,0 +1,1 @@
+export PYTHONPATH=/home/i_wuzhikun/project/vllm-test/triton-tools-aot:$PYTHONPATH
