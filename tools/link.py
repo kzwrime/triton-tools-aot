@@ -1,9 +1,9 @@
 from collections import defaultdict
 from pathlib import Path
-from typing import Sequence, Union
+from typing import Sequence, Union, Dict
 
 from dataclasses import dataclass
-
+from collections import defaultdict
 
 def _exists(x):
     return x is not None
@@ -26,6 +26,9 @@ class KernelLinkerMeta:
     constexpr_arg_types: Sequence[str]
     constexpr_arg_names: Sequence[str]
     constexpr_arg_vals: Sequence[str]
+    
+    def __hash__(self) -> int:
+        return hash(self.sig_hash)
     """ number of specialized arguments """
 
 
@@ -191,9 +194,9 @@ def _make_kernel_hints_dispatcher(name: str, metas: Sequence[KernelLinkerMeta], 
                 )  # Edge case where no specializations hence no dispatching required
         arg_names = [arg for arg, hint in zip(meta.arg_names, meta.sizes) if hint != 1]
         if with_grid:
-            src += f"    return {meta.orig_kernel_name}_{meta.sig_hash}_{meta.suffix}_with_grid(stream, {', '.join(arg_names)}, gridx, gridy, gridz);\n"
+            src += f"    return {meta.orig_kernel_name}_{meta.sig_hash}_{meta.suffix}_with_grid(stream, {', '.join(meta.arg_names)}, gridx, gridy, gridz);\n"
         else:
-            src += f"    return {meta.orig_kernel_name}_{meta.sig_hash}_{meta.suffix}(stream, {', '.join(arg_names)});\n"
+            src += f"    return {meta.orig_kernel_name}_{meta.sig_hash}_{meta.suffix}(stream, {', '.join(meta.arg_names)});\n"
     src += "\n"
     src += "  return CUDA_ERROR_INVALID_VALUE;\n"
     src += "}\n"
@@ -204,8 +207,10 @@ def _make_kernel_hints_dispatcher(name: str, metas: Sequence[KernelLinkerMeta], 
 def make_kernel_hints_dispatcher(name: str, metas: Sequence[KernelLinkerMeta]) -> str:
     src = f"// launcher for: {name}\n"
     for meta in sorted(metas, key=lambda m: -m.num_specs):
-        src += f"CUresult {meta.orig_kernel_name}_{meta.sig_hash}_{meta.suffix}(CUstream stream, {gen_signature(meta)});\n"
-        src += f"CUresult {meta.orig_kernel_name}_{meta.sig_hash}_{meta.suffix}_with_grid(CUstream stream, {gen_signature(meta)}, unsigned int gridx, unsigned int gridy, unsigned int gridz);\n"
+        src += f"CUresult {meta.orig_kernel_name}_{meta.sig_hash}_{meta.suffix}(CUstream stream, {gen_signature_with_full_args(meta)});\n"
+        src += f"CUresult {meta.orig_kernel_name}_{meta.sig_hash}_{meta.suffix}_with_grid(CUstream stream, {gen_signature_with_full_args(meta)}, unsigned int gridx, unsigned int gridy, unsigned int gridz);\n"
+        # src += f"CUresult {meta.orig_kernel_name}_{meta.sig_hash}_{meta.suffix}(CUstream stream, {gen_signature(meta)});\n"
+        # src += f"CUresult {meta.orig_kernel_name}_{meta.sig_hash}_{meta.suffix}_with_grid(CUstream stream, {gen_signature(meta)}, unsigned int gridx, unsigned int gridy, unsigned int gridz);\n"
     src += "\n"
 
     src += _make_kernel_hints_dispatcher(name, metas)
@@ -250,27 +255,94 @@ def make_constexpr_dispatcher(kernels: dict) -> str:
     src += "\n"
     # print(metas)
 
-    for meta in sorted(metas, key=lambda m: -m.num_specs):
-        cond_fn = (  #
-            lambda val, hint: f"({val} % {hint} == 0)"  #
-            if hint == 16  #
-            else f"({val} == {hint})"  #
-            if hint == 1  #
-            else None)
-        conds = " && ".join([  #
-            cond_fn(val, hint)  #
-            for val, hint in zip(meta.arg_names, meta.sizes)  #
-            if hint is not None
-        ])
-        src += "  if ( "
-        src += f"({conds})" if any(meta.sizes) else "(1)"  # Edge case where no specializations hence no dispatching required
-        
-        for name, value in zip(meta.constexpr_arg_names, meta.constexpr_arg_vals):
-            src  += f" && ({name} == {value})"
-        
-        src += " )\n"
-        arg_names = [arg for arg, hint in zip(meta.arg_names, meta.sizes) if hint != 1]
-        src += f"    return {meta.orig_kernel_name}_{meta.sig_hash}_{meta.suffix}_with_grid(stream, {', '.join(arg_names)}, gridx, gridy, gridz);\n"
+    conds_set = dict()
+    conds_dict = dict()
+    # conds_dict = dict()
+
+    cond_fn = (  #
+        lambda val, hint: f"({val} % {hint} == 0)"  #
+        if hint == 16  #
+        else f"({val} == {hint})"  #
+        if hint == 1  #
+        else None)
+
+    # {
+    #     "arg0": {
+    #         [
+    #             (priority=0, "arg0 == 1", [kernels])
+    #             (priority=0, "arg0 == 4", [kernels])
+    #             (priority=16, "arg0 % 16 == 0", [kernels])
+    #         ]
+    #     },
+    #     "arg1"...
+    # }
+
+    conds_arg_select = dict()
+
+    for arg_name in meta.constexpr_arg_names:
+        conds_arg_select[arg_name] = defaultdict(list)
+    for arg_name in meta.arg_names:
+        conds_arg_select[arg_name] = defaultdict(list)
+
+
+    for meta in metas:
+        for arg_name, hint in zip(meta.arg_names, meta.sizes):
+            if hint is not None:
+                if hint == 16:
+                    # TODO align 优先级
+                    conds_arg_select[arg_name][(hint, f"({arg_name} % {hint} == 0)")].append(meta)
+                else:
+                    # constant 常量的优先级是 10000，最高优先级
+                    # 注意，var_arg == 1 出现两次，还有一次在 constexpr 中
+                    conds_arg_select[arg_name][(10000, f"({arg_name} == {hint})")].append(meta)
+    
+        for arg_name, value in zip(meta.constexpr_arg_names, meta.constexpr_arg_vals):
+            conds_arg_select[arg_name][(10000, f"({arg_name} == {value})")].append(meta)
+    
+    for key in conds_arg_select.keys():
+        conds_arg_select[key] = sorted(list(conds_arg_select[key].items()), reverse=True)
+
+    conds_arg_select_list = list(conds_arg_select.values())
+    conds_arg_select_list = sorted(conds_arg_select_list, key = lambda listx: len(listx))
+    conds_arg_select_list = [item for item in conds_arg_select_list if len(conds_arg_select_list) > 0]
+    # conds_arg_select_keys = list(conds_arg_select.keys())
+    
+    # TODO 添加缓存机制，对于相同的 kernels, arg_i，如果 len(kernels) >= 3，则建立一个函数，然后后面直接调用它
+    def select_kernels(kernels: set, arg_i, cinst_list):
+        # print(f">>>>>>>>>>>>>>>>>>>>>>> arg_i={arg_i} <<<<<<<<<<<<<<<<<<<<<<")
+        # print(f"\n\n{str(kernels)}")
+        # print(''.join(cinst_list))
+        if len(kernels) == 0:
+            cinst_list.append(f'{"  " * arg_i}printf("%s:%d No Arguement Matched !\\n", __FILE__, __LINE__);\n')
+            return
+            
+        if arg_i == len(conds_arg_select_list):
+            assert len(kernels) == 1
+            meta = list(kernels)[0]
+            arg_names = [arg for arg, hint in zip(meta.arg_names, meta.sizes) if hint != 1]
+            cinst_list.append(f"{'  ' * arg_i}return {meta.orig_kernel_name}_{meta.sig_hash}_{meta.suffix}_with_grid(stream, {', '.join(meta.arg_names)}, gridx, gridy, gridz);\n")
+        else:
+            
+            # arg_info = conds_arg_select[conds_arg_select_keys[arg_i]]
+            arg_info = conds_arg_select_list[arg_i]
+            else_kernels = kernels.copy()
+            for _i, cond_kernels in enumerate(arg_info):
+                cond = cond_kernels[0][1]
+                ckernels = cond_kernels[1]
+                if_str = f"{'if' if _i == 0 else 'else if'}"
+                cinst_list.append(f"{'  ' * arg_i}{if_str} ({cond}){{\n")
+                select_kernels(kernels.intersection(ckernels), arg_i+1, cinst_list)
+                cinst_list.append(f"{'  ' * arg_i}}} // {if_str} ({cond})\n")
+                else_kernels = else_kernels.difference(ckernels)
+            if_str = f"{'' if len(arg_info) == 0 else 'else'}"
+            cinst_list.append(f"{'  ' * arg_i}{if_str} {{\n")
+            select_kernels(else_kernels, arg_i+1, cinst_list)
+            cinst_list.append(f"{'  ' * arg_i}}}\n")
+            
+    cinst_list = []
+    select_kernels(set(metas), 0, cinst_list)
+    src += ''.join(cinst_list)
+
     src += "\n"
     src += "  return CUDA_ERROR_INVALID_VALUE;\n"
     src += "}\n"
@@ -386,6 +458,9 @@ if __name__ == "__main__":
     constexpr_dispatcher_header = make_constexpr_dispatcher_header(parser.kernels)
     with args.out.with_suffix(".h").open("w") as fp:
         out = "#include <cuda.h>\n"
+        out += "#ifdef __cplusplus\n"
+        out += 'extern "C"{\n'
+        out += "#endif // __cplusplus\n"
         out += "\n".join(algo_decls)
         out += "\n"
         out += get_num_algos_decl
@@ -394,6 +469,9 @@ if __name__ == "__main__":
         out += "\n"
         out += constexpr_dispatcher_header
         out += "\n"
+        out += "#ifdef __cplusplus\n"
+        out += '}\n'
+        out += "#endif // __cplusplus\n"
         fp.write(out)
 
     # generate source
@@ -410,6 +488,7 @@ if __name__ == "__main__":
         out += "#include <cuda.h>\n"
         out += "#include <stdint.h>\n"
         out += "#include <assert.h>\n"
+        out += "#include <stdio.h>\n"
         out += "\n"
         out += "\n".join(defs)
         out += "\n"

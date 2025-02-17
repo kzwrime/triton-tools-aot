@@ -144,6 +144,7 @@ def kernel_to_c(
         "gridY": grid[1],
         "gridZ": grid[2],
         "_placeholder": "",
+        "kernel_ptx": '// ' + ccinfo.asm['ptx'].replace('\n', '\n// '),
     }
     # print(f"const_sig={const_sig}")
     # print(f"meta_sig={meta_sig}")

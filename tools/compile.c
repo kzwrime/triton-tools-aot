@@ -19,7 +19,7 @@ static inline void gpuAssert(CUresult code, const char *file, int line) {{
     char err[1024] = {{0}};
     strcat(err, prefix);
     strcat(err, str);
-    printf("%s\\n", err);
+    printf("%s:%d %s\n", file, line, err);
     exit(code);
   }}
 }}
@@ -71,6 +71,12 @@ CUresult {kernel_name}_with_grid(CUstream stream, {signature}, unsigned int gX, 
        load_{kernel_name}();
     void *args[{num_args}] = {{ {arg_pointers} }};
     // TODO: shared memory
-    if(gX * gY * gZ > 0)
-      return cuLaunchKernel({kernel_name}_func, gX, gY, gZ, {num_warps} * 32, 1, 1, {shared}, stream, args, NULL);
+    if(gX * gY * gZ > 0) {{
+      CUresult rst = cuLaunchKernel({kernel_name}_func, gX, gY, gZ, {num_warps} * 32, 1, 1, {shared}, stream, args, NULL);
+      CUDA_CHECK(rst);
+      return rst;
+    }}
 }}
+
+// PTX
+{kernel_ptx}
