@@ -210,3 +210,20 @@ func_args = {
 ```bash
 pytest -s tests/kernels/test_block_fp8.py::test_w8a8_block_fp8_fused_moe
 ```
+
+注意：请先不修改跑一遍，确保参数能跑得动，如果内存不足，请将下列参数 N_moe/K_moe/E 适当调小
+
+另外，由于全量 kernel 较多，先设置 `M_moe = [7]` p跑对一个即可
+
+```python
+# M_moe = [1, 7, 83, 512, 2048]
+M_moe = [7]
+N_moe = [4608]  # [128, 4608, 13824]
+K_moe = [7168]  # [256, 7168, 13824]
+BLOCK_SIZE = [[128, 128]]
+E = [256]  # [8, 24, 128, 256]
+TOP_KS = [1]  # [1, 2, 6]
+OUT_DTYPES = [torch.bfloat16]  # [torch.float32, torch.half, torch.bfloat16]
+SEEDS = [0]
+
+```
